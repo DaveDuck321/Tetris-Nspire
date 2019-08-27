@@ -9,6 +9,7 @@ function on.construction()
 end
 
 function on.create()
+    lastFrameTime = timer.getMilliSecCounter()
     Init()
     on.timer()
 end
