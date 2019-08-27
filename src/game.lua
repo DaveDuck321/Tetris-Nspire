@@ -44,9 +44,15 @@ local lineKickChecks = {
     }
 }
 
+local scores = {0, 100, 300, 500, 800}
+
 local board = {
     grid = {},
     next = {},
+    animation = {
+        rows = {},
+        frame = 10
+    },
     hold = {
         holdID = 0,
         canHold = true
@@ -63,7 +69,7 @@ local board = {
         gridSize = 0,
 
         goundTimer = 500
-    }   
+    }
 }
 
 local progress = {
@@ -165,6 +171,34 @@ function attemptMove(drop, directionX, directionY)
     end
 end
 
+function updateBoardRows()
+    local rowsCleared = 0
+    for y = 1, 28 do
+        local shouldClear = true
+        for x = 1, 10 do
+            if(board.grid[y][x] == 0) then
+                shouldClear = false
+                break
+            end
+        end
+        if(shouldClear) then
+            rowsCleared = rowsCleared + 1
+            table.insert(board.animation.rows, y)
+            board.animation.frame = 10
+        end
+    end
+    progress.score = progress.score + scores[rowsCleared + 1]
+    progress.lines = progress.lines + rowsCleared
+    progress.level = math.floor(progress.lines/10)
+end
+
+function deleteClearedRows(rows)
+    for i = #rows, 1, -1 do
+        table.remove(board.grid, rows[i])
+        table.insert(board.grid, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0})
+    end
+end
+
 function lockDropping(drop)
     for y = 1, drop.gridSize do
         for x = 1, drop.gridSize do
@@ -173,6 +207,7 @@ function lockDropping(drop)
             end
         end
     end
+    updateBoardRows()
     setNextPiece()
 end
 
@@ -212,6 +247,16 @@ function Init()
 end
 
 function Update(deltaTime, key)
+    --Dont update while animating
+    if(board.animation.frame ~= 0) then
+        board.animation.frame = board.animation.frame-1
+        if(board.animation.frame == 0) then
+            deleteClearedRows(board.animation.rows)
+            board.animation.rows = {}
+        end
+        return
+    end
+
     local drop = board.dropping
     --Movement speed unavoidably changes based on framerate/ autorepeat frequency
     if(key=="right")    then attemptMove(drop, 1, 0)

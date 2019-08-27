@@ -97,9 +97,15 @@ local lineKickChecks = {
     }
 }
 
+local scores = {0, 100, 300, 500, 800}
+
 local board = {
     grid = {},
     next = {},
+    animation = {
+        rows = {},
+        frame = 10
+    },
     hold = {
         holdID = 0,
         canHold = true
@@ -116,13 +122,13 @@ local board = {
         gridSize = 0,
 
         goundTimer = 500
-    }   
+    }
 }
 
 local progress = {
     score = 0,
     lines = 0,
-    level = 25
+    level = 0
 }
 
 local FPS = {
@@ -218,6 +224,34 @@ function attemptMove(drop, directionX, directionY)
     end
 end
 
+function updateBoardRows()
+    local rowsCleared = 0
+    for y = 1, 28 do
+        local shouldClear = true
+        for x = 1, 10 do
+            if(board.grid[y][x] == 0) then
+                shouldClear = false
+                break
+            end
+        end
+        if(shouldClear) then
+            rowsCleared = rowsCleared + 1
+            table.insert(board.animation.rows, y)
+            board.animation.frame = 10
+        end
+    end
+    progress.score = progress.score + scores[rowsCleared + 1]
+    progress.lines = progress.lines + rowsCleared
+    progress.level = math.floor(progress.lines/10)
+end
+
+function deleteClearedRows(rows)
+    for i = #rows, 1, -1 do
+        table.remove(board.grid, rows[i])
+        table.insert(board.grid, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0})
+    end
+end
+
 function lockDropping(drop)
     for y = 1, drop.gridSize do
         for x = 1, drop.gridSize do
@@ -226,6 +260,7 @@ function lockDropping(drop)
             end
         end
     end
+    updateBoardRows()
     setNextPiece()
 end
 
@@ -265,6 +300,16 @@ function Init()
 end
 
 function Update(deltaTime, key)
+    --Dont update while animating
+    if(board.animation.frame ~= 0) then
+        board.animation.frame = board.animation.frame-1
+        if(board.animation.frame == 0) then
+            deleteClearedRows(board.animation.rows)
+            board.animation.rows = {}
+        end
+        return
+    end
+
     local drop = board.dropping
     --Movement speed unavoidably changes based on framerate/ autorepeat frequency
     if(key=="right")    then attemptMove(drop, 1, 0)
@@ -309,10 +354,19 @@ end
 ----- '.\src\draw.lua' -----
 local pieceColors = {{9, 253, 248}, {0, 0, 253}, {255, 169, 0}, {255, 255, 92}, {0, 255, 0}, {151, 2, 255}, {253, 0, 0}}
 
+function arrayContains(array, thing)
+    for i = 1, #array do
+        if(array[i] == thing) then
+            return true
+        end
+    end
+    return false
+end
+
 function drawFPS(gc)
     gc:setColorRGB(255, 0, 0)
-    --gc:drawString(math.floor(FPS.FPS*10)/10, 10, 5) --1 dp
-    gc:drawString(board.dropping.goundTimer, 10, 5)
+    gc:drawString(math.floor(FPS.FPS*10)/10, 10, 5) --1 dp
+    --gc:drawString(board.dropping.goundTimer, 10, 5)
 end
 
 function drawPieceBox(gc, index, pieceID, blockWidth, offsetX, top)
@@ -375,8 +429,11 @@ function drawBoard(gc, screenWidth, height)
     for y = 0, 20 do
         gc:fillRect(offsetX, y*blockWidth + offsetY, width, 1)
     end
-    for x = 0, 9 do
-        for y = 1, 20 do
+    for y = 1, 20 do
+        local continue = board.animation.frame%2==0 and arrayContains(board.animation.rows, y)
+        for x = 0, 9 do
+            if(continue) then break end -- budget continue statement
+
             local drop = board.dropping
             local dropX = x-drop.offsetX + 1
             local dropY = y-drop.offsetY

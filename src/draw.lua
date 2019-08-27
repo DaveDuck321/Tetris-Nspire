@@ -1,9 +1,18 @@
 local pieceColors = {{9, 253, 248}, {0, 0, 253}, {255, 169, 0}, {255, 255, 92}, {0, 255, 0}, {151, 2, 255}, {253, 0, 0}}
 
+function arrayContains(array, thing)
+    for i = 1, #array do
+        if(array[i] == thing) then
+            return true
+        end
+    end
+    return false
+end
+
 function drawFPS(gc)
     gc:setColorRGB(255, 0, 0)
-    --gc:drawString(math.floor(FPS.FPS*10)/10, 10, 5) --1 dp
-    gc:drawString(board.dropping.goundTimer, 10, 5)
+    gc:drawString(math.floor(FPS.FPS*10)/10, 10, 5) --1 dp
+    --gc:drawString(board.dropping.goundTimer, 10, 5)
 end
 
 function drawPieceBox(gc, index, pieceID, blockWidth, offsetX, top)
@@ -66,8 +75,11 @@ function drawBoard(gc, screenWidth, height)
     for y = 0, 20 do
         gc:fillRect(offsetX, y*blockWidth + offsetY, width, 1)
     end
-    for x = 0, 9 do
-        for y = 1, 20 do
+    for y = 1, 20 do
+        local continue = board.animation.frame%2==0 and arrayContains(board.animation.rows, y)
+        for x = 0, 9 do
+            if(continue) then break end -- budget continue statement
+
             local drop = board.dropping
             local dropX = x-drop.offsetX + 1
             local dropY = y-drop.offsetY
