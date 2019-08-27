@@ -100,6 +100,10 @@ local lineKickChecks = {
 local board = {
     grid = {},
     next = {},
+    hold = {
+        holdID = 0,
+        canHold = true
+    },
     dropping = {
         dropTime = 0,
         rotation = 0,
@@ -109,14 +113,16 @@ local board = {
         ghostOffsetY = 0,
         
         grid = {},
-        gridSize = 0
+        gridSize = 0,
+
+        goundTimer = 500
     }   
 }
 
 local progress = {
     score = 0,
     lines = 0,
-    level = 0
+    level = 25
 }
 
 local FPS = {
@@ -148,7 +154,7 @@ function pieceOffsetLegal(piece, gridSize, offsetX, offsetY)
 end
 
 function setNextPiece()
-    local pieceID = table.remove(board.next, #board.next)
+    local pieceID = table.remove(board.next, 1)
     local offsetY = 21 - pieceGridSizes[pieceID]
     local offsetX = 5 - math.ceil(pieceGridSizes[pieceID]/2)
 
@@ -157,7 +163,9 @@ function setNextPiece()
     board.dropping.offsetX = offsetX
     board.dropping.offsetY = offsetY
     board.dropping.rotation = 0
-    board.dropping.dropTime = dropTime(progress.level)
+    board.dropping.dropTime = 0
+    board.dropping.goundTimer = 500
+    board.dropping.onGround = false
 
     for y = 1, board.dropping.gridSize do
         table.insert(board.dropping.grid, {})
@@ -165,16 +173,8 @@ function setNextPiece()
             table.insert(board.dropping.grid[y], pieces[pieceID][y][x])
         end
     end
-    if(not pieceOffsetLegal(board.dropping.grid, pieceGridSizes[pieceID], offsetX, offsetY)) then
-        return false
-    end
-
-    if(pieceOffsetLegal(board.dropping.grid, pieceGridSizes[pieceID], offsetX, offsetY-1)) then
-        board.dropping.offsetY = offsetY-1
-    end
-
     pieceRandomizer()
-    return true
+    return pieceOffsetLegal(board.dropping.grid, pieceGridSizes[pieceID], offsetX, offsetY)
 end
 
 function attemptRotate(drop, direction)
@@ -204,6 +204,7 @@ function attemptRotate(drop, direction)
             drop.offsetX = newOffsetX
             drop.offsetY = newOffsetY
             drop.rotation = (drop.rotation + direction) % 4
+            drop.goundTimer = 500
             return
         end
     end
@@ -213,7 +214,25 @@ function attemptMove(drop, directionX, directionY)
     if(pieceOffsetLegal(drop.grid, drop.gridSize, drop.offsetX+directionX, drop.offsetY+directionY)) then
         drop.offsetX = drop.offsetX + directionX
         drop.offsetY = drop.offsetY + directionY
+        drop.goundTimer = 500
     end
+end
+
+function lockDropping(drop)
+    for y = 1, drop.gridSize do
+        for x = 1, drop.gridSize do
+            if(drop.grid[y][x] ~= 0) then
+                board.grid[y + drop.offsetY][x + drop.offsetX] = drop.grid[y][x]
+            end
+        end
+    end
+    setNextPiece()
+end
+
+function hardDrop(drop)
+    setGhostOffset(drop)
+    drop.offsetY = drop.ghostOffsetY
+    lockDropping(drop)
 end
 
 function pieceRandomizer()
@@ -241,8 +260,6 @@ function Init()
             table.insert(board.grid[y], 0)
         end
     end
-    board.grid[1][4] = 1
-    board.grid[16][6] = 1
     pieceRandomizer()
     setNextPiece()
 end
@@ -253,16 +270,26 @@ function Update(deltaTime, key)
     if(key=="right")    then attemptMove(drop, 1, 0)
     elseif(key=="left") then attemptMove(drop, -1, 0)
     elseif(key=="down") then attemptMove(drop, 0, -1)
+    elseif(key=="up")   then hardDrop(drop)
     elseif(key=="1")    then attemptRotate(drop, -1)
     elseif(key=="2")    then attemptRotate(drop, 1)
     end
+
+    local onGround = not pieceOffsetLegal(drop.grid, drop.gridSize, drop.offsetX, drop.offsetY - 1)
 
     drop.dropTime = drop.dropTime - deltaTime
     if(drop.dropTime < 0) then
         --Drop piece
         drop.dropTime = dropTime(progress.level)
-        if(pieceOffsetLegal(drop.grid, drop.gridSize, drop.offsetX, drop.offsetY - 1)) then
+        if(not onGround) then
             drop.offsetY = drop.offsetY - 1
+        end
+    end
+
+    if(onGround) then
+        drop.goundTimer = drop.goundTimer - deltaTime
+        if(drop.goundTimer < 0) then
+            lockDropping(drop)
         end
     end
 
@@ -284,11 +311,11 @@ local pieceColors = {{9, 253, 248}, {0, 0, 253}, {255, 169, 0}, {255, 255, 92}, 
 
 function drawFPS(gc)
     gc:setColorRGB(255, 0, 0)
-    gc:drawString(math.floor(FPS.FPS*10)/10, 10, 5) --1 dp
+    --gc:drawString(math.floor(FPS.FPS*10)/10, 10, 5) --1 dp
+    gc:drawString(board.dropping.goundTimer, 10, 5)
 end
 
-function drawNextBox(gc, index, blockWidth, offsetX, top)
-    local pieceID = board.next[index+1]
+function drawPieceBox(gc, index, pieceID, blockWidth, offsetX, top)
     local offsetY = top + index * (blockWidth * 4 + 10)
     local width = blockWidth * 4
     gc:setColorRGB(50, 50, 50)
@@ -301,6 +328,8 @@ function drawNextBox(gc, index, blockWidth, offsetX, top)
     for y = 0, 4 do
         gc:fillRect(offsetX, y*blockWidth + offsetY, width, 1)
     end
+
+    if(pieceID==0) then return end
 
     local color = pieceColors[pieceID]
     gc:setColorRGB(color[1], color[2], color[3])
@@ -364,11 +393,14 @@ function drawBoard(gc, screenWidth, height)
             drawBlock(gc, x, y, offsetX, offsetY, blockWidth, board.grid[y][x+1], true)
         end
     end
+    --Next pieces
+    drawPieceBox(gc, 0, board.next[1], blockWidth, offsetX + width + 10, offsetY)
+    drawPieceBox(gc, 1, board.next[2], blockWidth, offsetX + width + 10, offsetY)
+    drawPieceBox(gc, 2, board.next[3], blockWidth, offsetX + width + 10, offsetY)
+    drawPieceBox(gc, 3, board.next[4], blockWidth, offsetX + width + 10, offsetY)
 
-    drawNextBox(gc, 0, blockWidth, offsetX + width + 10, offsetY)
-    drawNextBox(gc, 1, blockWidth, offsetX + width + 10, offsetY)
-    drawNextBox(gc, 2, blockWidth, offsetX + width + 10, offsetY)
-    drawNextBox(gc, 3, blockWidth, offsetX + width + 10, offsetY)
+    --Hold
+    drawPieceBox(gc, 0.5, board.hold.holdID, blockWidth, offsetX - blockWidth * 4 - 10, offsetY)
 end
 
 function Draw(gc, width, height)

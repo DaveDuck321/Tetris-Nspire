@@ -2,11 +2,11 @@ local pieceColors = {{9, 253, 248}, {0, 0, 253}, {255, 169, 0}, {255, 255, 92}, 
 
 function drawFPS(gc)
     gc:setColorRGB(255, 0, 0)
-    gc:drawString(math.floor(FPS.FPS*10)/10, 10, 5) --1 dp
+    --gc:drawString(math.floor(FPS.FPS*10)/10, 10, 5) --1 dp
+    gc:drawString(board.dropping.goundTimer, 10, 5)
 end
 
-function drawNextBox(gc, index, blockWidth, offsetX, top)
-    local pieceID = board.next[index+1]
+function drawPieceBox(gc, index, pieceID, blockWidth, offsetX, top)
     local offsetY = top + index * (blockWidth * 4 + 10)
     local width = blockWidth * 4
     gc:setColorRGB(50, 50, 50)
@@ -19,6 +19,8 @@ function drawNextBox(gc, index, blockWidth, offsetX, top)
     for y = 0, 4 do
         gc:fillRect(offsetX, y*blockWidth + offsetY, width, 1)
     end
+
+    if(pieceID==0) then return end
 
     local color = pieceColors[pieceID]
     gc:setColorRGB(color[1], color[2], color[3])
@@ -82,11 +84,14 @@ function drawBoard(gc, screenWidth, height)
             drawBlock(gc, x, y, offsetX, offsetY, blockWidth, board.grid[y][x+1], true)
         end
     end
+    --Next pieces
+    drawPieceBox(gc, 0, board.next[1], blockWidth, offsetX + width + 10, offsetY)
+    drawPieceBox(gc, 1, board.next[2], blockWidth, offsetX + width + 10, offsetY)
+    drawPieceBox(gc, 2, board.next[3], blockWidth, offsetX + width + 10, offsetY)
+    drawPieceBox(gc, 3, board.next[4], blockWidth, offsetX + width + 10, offsetY)
 
-    drawNextBox(gc, 0, blockWidth, offsetX + width + 10, offsetY)
-    drawNextBox(gc, 1, blockWidth, offsetX + width + 10, offsetY)
-    drawNextBox(gc, 2, blockWidth, offsetX + width + 10, offsetY)
-    drawNextBox(gc, 3, blockWidth, offsetX + width + 10, offsetY)
+    --Hold
+    drawPieceBox(gc, 0.5, board.hold.holdID, blockWidth, offsetX - blockWidth * 4 - 10, offsetY)
 end
 
 function Draw(gc, width, height)
