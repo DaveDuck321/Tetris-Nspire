@@ -17,6 +17,7 @@ local board = {
         dropTime = 0,
         offsetX = 0,
         offsetY = 0,
+        ghostOffsetY = 0,
         gridSize = 0,
         grid = {}
     }   
@@ -25,7 +26,7 @@ local board = {
 local progress = {
     score = 0,
     lines = 0,
-    level = 1
+    level = 0
 }
 
 local FPS = {
@@ -35,7 +36,7 @@ local FPS = {
 }
 
 function dropTime(level)
-    return math.pow(0.8 - (level-1)*0.007, level-1) * 1000
+    return math.pow(0.8 - level*0.007, level) * 1000
 end
 
 function pieceOffsetLegal(piece, gridSize, offsetX, offsetY)
@@ -85,11 +86,27 @@ function setNextPiece()
     return true
 end
 
+function attemptMove(drop, directionX, directionY)
+    if(pieceOffsetLegal(drop.grid, drop.gridSize, drop.offsetX+directionX, drop.offsetY+directionY)) then
+        drop.offsetX = drop.offsetX + directionX
+        drop.offsetY = drop.offsetY + directionY
+    end
+end
+
 function pieceRandomizer()
     if(#board.next<7) then
         local allPieces = {1, 2, 3, 4, 5, 6, 7}
         for i=1, 7 do
             table.insert(board.next, table.remove(allPieces, math.random(#allPieces)))
+        end
+    end
+end
+
+function setGhostOffset(drop)
+    for offsetY = drop.offsetY, -4, -1 do
+        if(not pieceOffsetLegal(drop.grid, drop.gridSize, drop.offsetX, offsetY)) then
+            drop.ghostOffsetY = offsetY+1
+            return
         end
     end
 end
@@ -109,6 +126,12 @@ end
 
 function Update(deltaTime, key)
     local drop = board.dropping
+    --Movement speed unavoidably changes based on framerate/ autorepeat frequency
+    if(key=="right")    then attemptMove(drop, 1, 0)
+    elseif(key=="left") then attemptMove(drop, -1, 0)
+    elseif(key=="down") then attemptMove(drop, 0, -1)
+    end
+
     drop.dropTime = drop.dropTime - deltaTime
     if(drop.dropTime < 0) then
         --Drop piece
@@ -117,6 +140,8 @@ function Update(deltaTime, key)
             drop.offsetY = drop.offsetY - 1
         end
     end
+
+    setGhostOffset(drop)
 
     FPS.frames = FPS.frames + 1
     FPS.totalTime = FPS.totalTime + deltaTime

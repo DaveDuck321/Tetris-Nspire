@@ -36,6 +36,17 @@ function drawNextBox(gc, index, blockWidth, offsetX, top)
     end
 end
 
+function drawBlock(gc, x, y, offsetX, offsetY, blockWidth, id, fill)
+    if(id == 0) then return end
+    local color = pieceColors[id]
+    gc:setColorRGB(color[1], color[2], color[3])
+    if(fill) then
+        gc:fillRect(offsetX + x*blockWidth + 1, (20-y)*blockWidth + offsetY + 1, blockWidth-1, blockWidth-1)
+        return
+    end
+    gc:drawRect(offsetX + x*blockWidth + 1, (20-y)*blockWidth + offsetY + 1, blockWidth-2, blockWidth-2)
+end
+
 function drawBoard(gc, screenWidth, height)
     local blockWidth = math.floor(height/20)
     local width = blockWidth * 10
@@ -58,18 +69,17 @@ function drawBoard(gc, screenWidth, height)
             local drop = board.dropping
             local dropX = x-drop.offsetX + 1
             local dropY = y-drop.offsetY
-            if(dropX > 0 and dropX <= drop.gridSize and dropY > 0 and dropY <= drop.gridSize) then
-                if(drop.grid[dropY][dropX] ~= 0) then
-                    local color = pieceColors[drop.grid[dropY][dropX]]
-                    gc:setColorRGB(color[1], color[2], color[3])
-                    gc:fillRect(offsetX + x*blockWidth + 1, (20-y)*blockWidth + offsetY + 1, blockWidth-1, blockWidth-1)
+            local ghostY = y-drop.ghostOffsetY
+
+            if(dropX > 0 and dropX <= drop.gridSize) then
+                if(ghostY > 0 and ghostY <= drop.gridSize) then
+                    drawBlock(gc, x, y, offsetX, offsetY, blockWidth, drop.grid[ghostY][dropX], false)
+                end
+                if(dropY > 0 and dropY <= drop.gridSize) then
+                    drawBlock(gc, x, y, offsetX, offsetY, blockWidth, drop.grid[dropY][dropX], true)
                 end
             end
-            if(board.grid[y][x+1] ~= 0) then
-                local color = pieceColors[board.grid[y][x+1]]
-                gc:setColorRGB(color[1], color[2], color[3])
-                gc:fillRect(offsetX + x*blockWidth + 1, (20-y)*blockWidth + offsetY + 1, blockWidth-1, blockWidth-1)
-            end
+            drawBlock(gc, x, y, offsetX, offsetY, blockWidth, board.grid[y][x+1], true)
         end
     end
 
