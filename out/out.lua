@@ -53,13 +53,13 @@ end
 local pieceGridSizes = {4, 3, 3, 2, 3, 3, 3}
 
 local pieces = {{
-    {0, 0, 0, 0}, {1, 1, 1, 1}, {0, 0, 0 ,0}, {0, 0, 0, 0}},
-    {{2, 0, 0}, {2, 2, 2}, {0, 0, 0}},
-    {{0, 0, 3}, {3, 3, 3}, {0, 0, 0}},
+    {0, 0, 0, 0}, {0, 0, 0 ,0}, {1, 1, 1, 1}, {0, 0, 0, 0}},
+    {{0, 0, 0}, {2, 2, 2}, {2, 0, 0}},
+    {{0, 0, 0}, {3, 3, 3}, {0, 0, 3}},
     {{4, 4}, {4, 4}},
-    {{0, 5, 5}, {5, 5, 0}, {0, 0, 0}},
-    {{0, 6, 0}, {6, 6, 6}, {0, 0, 0}},
-    {{7, 7, 0}, {0, 7, 7}, {0, 0, 0}}
+    {{0, 0, 0}, {5, 5, 0}, {0, 5, 5}},
+    {{0, 0, 0}, {6, 6, 6}, {0, 6, 0}},
+    {{0, 0, 0}, {0, 7, 7}, {7, 7, 0}}
 }
 
 local board = {
@@ -88,18 +88,36 @@ local FPS = {
 function setNextPiece()
     local newPiece = {}
     local pieceID = table.remove(board.next, #board.next)
+    local offsetY = 21 - pieceGridSizes[pieceID]
+    local offsetX = 5 - math.ceil(pieceGridSizes[pieceID]/2)
+    local canDrop = true
+
     board.dropping.grid = {}
     board.dropping.gridSize = pieceGridSizes[pieceID]
+    board.dropping.offsetX = offsetX
+
     for y = 1, board.dropping.gridSize do
         table.insert(board.dropping.grid, {})
         for x = 1, board.dropping.gridSize do
             table.insert(board.dropping.grid[y], pieces[pieceID][y][x])
+            if(pieces[pieceID][y][x] ~= 0) then
+                if(board.grid[y+offsetY][x+offsetX] ~= 0) then
+                    return false
+                end
+                if(board.grid[y+offsetY-1][x+offsetX] ~= 0) then
+                    canDrop = false
+                end
+            end
         end
     end
-    board.dropping.offsetY = -1
-    board.dropping.offsetX = 5-math.ceil(board.dropping.gridSize/2)
 
+    if(canDrop) then
+        board.dropping.offsetY = offsetY-1
+    else
+        board.dropping.offsetY = offsetY
+    end
     pieceRandomizer()
+    return true
 end
 
 function pieceRandomizer()
@@ -112,13 +130,14 @@ function pieceRandomizer()
 end
 
 function Init()
-    for y = 1, 20 do
+    for y = 1, 28 do
         table.insert(board.grid, {})
         for x = 1, 10 do
             table.insert(board.grid[y], 0)
         end
     end
-    board.grid[20][4] = 1
+    board.grid[1][4] = 1
+    board.grid[19][6] = 1
     pieceRandomizer()
     setNextPiece()
 end
@@ -166,9 +185,9 @@ function drawNextBox(gc, index, blockWidth, offsetX, top)
     if(gridSize == 4) then sizeOffset = 0 end
 
     for x = 0, gridSize-1 do
-        for y = 0, gridSize-1 do
-            if(pieces[pieceID][y+1][x+1] ~= 0) then
-                gc:fillRect(offsetX + (x+sizeOffset)*blockWidth + 1, (y+sizeOffset)*blockWidth + offsetY + 1, blockWidth-1, blockWidth-1)
+        for y = 1, gridSize do
+            if(pieces[pieceID][y][x+1] ~= 0) then
+                gc:fillRect(offsetX + (x+sizeOffset)*blockWidth + 1, ((gridSize-y)+sizeOffset)*blockWidth + offsetY + 1, blockWidth-1, blockWidth-1)
             end
         end
     end
@@ -192,21 +211,21 @@ function drawBoard(gc, screenWidth, height)
         gc:fillRect(offsetX, y*blockWidth + offsetY, width, 1)
     end
     for x = 0, 9 do
-        for y = 0, 19 do
+        for y = 1, 20 do
             local drop = board.dropping
             local dropX = x-drop.offsetX + 1
-            local dropY = y-drop.offsetY + 1
+            local dropY = y-drop.offsetY
             if(dropX > 0 and dropX <= drop.gridSize and dropY > 0 and dropY <= drop.gridSize) then
                 if(drop.grid[dropY][dropX] ~= 0) then
                     local color = pieceColors[drop.grid[dropY][dropX]]
                     gc:setColorRGB(color[1], color[2], color[3])
-                    gc:fillRect(offsetX + x*blockWidth + 1, y*blockWidth + offsetY + 1, blockWidth-1, blockWidth-1)
+                    gc:fillRect(offsetX + x*blockWidth + 1, (20-y)*blockWidth + offsetY + 1, blockWidth-1, blockWidth-1)
                 end
             end
-            if(board.grid[y+1][x+1] ~= 0) then
-                local color = pieceColors[board.grid[y+1][x+1]]
+            if(board.grid[y][x+1] ~= 0) then
+                local color = pieceColors[board.grid[y][x+1]]
                 gc:setColorRGB(color[1], color[2], color[3])
-                gc:fillRect(offsetX + x*blockWidth + 1, y*blockWidth + offsetY + 1, blockWidth-1, blockWidth-1)
+                gc:fillRect(offsetX + x*blockWidth + 1, (20-y)*blockWidth + offsetY + 1, blockWidth-1, blockWidth-1)
             end
         end
     end

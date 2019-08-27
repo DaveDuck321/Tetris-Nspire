@@ -28,9 +28,9 @@ function drawNextBox(gc, index, blockWidth, offsetX, top)
     if(gridSize == 4) then sizeOffset = 0 end
 
     for x = 0, gridSize-1 do
-        for y = 0, gridSize-1 do
-            if(pieces[pieceID][y+1][x+1] ~= 0) then
-                gc:fillRect(offsetX + (x+sizeOffset)*blockWidth + 1, (y+sizeOffset)*blockWidth + offsetY + 1, blockWidth-1, blockWidth-1)
+        for y = 1, gridSize do
+            if(pieces[pieceID][y][x+1] ~= 0) then
+                gc:fillRect(offsetX + (x+sizeOffset)*blockWidth + 1, ((gridSize-y)+sizeOffset)*blockWidth + offsetY + 1, blockWidth-1, blockWidth-1)
             end
         end
     end
@@ -54,21 +54,21 @@ function drawBoard(gc, screenWidth, height)
         gc:fillRect(offsetX, y*blockWidth + offsetY, width, 1)
     end
     for x = 0, 9 do
-        for y = 0, 19 do
+        for y = 1, 20 do
             local drop = board.dropping
             local dropX = x-drop.offsetX + 1
-            local dropY = y-drop.offsetY + 1
+            local dropY = y-drop.offsetY
             if(dropX > 0 and dropX <= drop.gridSize and dropY > 0 and dropY <= drop.gridSize) then
                 if(drop.grid[dropY][dropX] ~= 0) then
                     local color = pieceColors[drop.grid[dropY][dropX]]
                     gc:setColorRGB(color[1], color[2], color[3])
-                    gc:fillRect(offsetX + x*blockWidth + 1, y*blockWidth + offsetY + 1, blockWidth-1, blockWidth-1)
+                    gc:fillRect(offsetX + x*blockWidth + 1, (20-y)*blockWidth + offsetY + 1, blockWidth-1, blockWidth-1)
                 end
             end
-            if(board.grid[y+1][x+1] ~= 0) then
-                local color = pieceColors[board.grid[y+1][x+1]]
+            if(board.grid[y][x+1] ~= 0) then
+                local color = pieceColors[board.grid[y][x+1]]
                 gc:setColorRGB(color[1], color[2], color[3])
-                gc:fillRect(offsetX + x*blockWidth + 1, y*blockWidth + offsetY + 1, blockWidth-1, blockWidth-1)
+                gc:fillRect(offsetX + x*blockWidth + 1, (20-y)*blockWidth + offsetY + 1, blockWidth-1, blockWidth-1)
             end
         end
     end
