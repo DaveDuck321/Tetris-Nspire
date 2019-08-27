@@ -10,16 +10,53 @@ local pieces = {{
     {{0, 0, 0}, {0, 7, 7}, {7, 7, 0}}
 }
 
+--Adapted from https://tetris.fandom.com/wiki/SRS
+local normKickChecks = {
+    --Anticlockwise
+    {
+        {{0, 0}, {1, 0}, {1, 1}, {0, -2}, {1, -2}},
+        {{0, 0}, {1, 0}, {1, -1}, {0, 2}, {1, 2}},
+        {{0, 0}, {-1, 0}, {-1, 1}, {0, -2}, {-1, -2}},
+        {{0, 0}, {-1, 0}, {-1, -1}, {0, 2}, {-1, 2}}
+    },
+    --Clockwise
+    {
+        {{0, 0}, {-1, 0}, {-1, 1}, {0, -2}, {-1, -2}},
+        {{0, 0}, {1, 0}, {1, -1}, {0, 2}, {1, 2}},
+        {{0, 0}, {1, 0}, {1, 1}, {0, -2}, {1, -2}},
+        {{0, 0}, {-1, 0}, {-1, -1}, {0, 2}, {-1, 2}}
+    }
+}
+local lineKickChecks = {
+    --Anticlockwise
+    {
+        {{0, 0}, {-1, 0}, {2, 0}, {-1, 2}, {2, -1}},
+        {{0, 0}, {2, 0}, {-1, 0}, {2, 1}, {-1, -2}},
+        {{0, 0}, {1, 0}, {-2, 0}, {1, -2}, {-2, 1}},
+        {{0, 0}, {-2, 0}, {1, 0}, {-2, -1}, {1, 2}}
+    },
+    --Clockwise
+    {
+        {{0, 0}, {-2, 0}, {1, 0}, {-2, -1}, {1, 2}},
+        {{0, 0}, {-1, 0}, {2, 0}, {-1, 2}, {2, -1}},
+        {{0, 0}, {2, 0}, {-1, 0}, {2, 1}, {-1, -2}},
+        {{0, 0}, {1, 0}, {-2, 0}, {1, -2}, {-2, 1}}
+    }
+}
+
 local board = {
     grid = {},
     next = {},
     dropping = {
         dropTime = 0,
+        rotation = 0,
+
         offsetX = 0,
         offsetY = 0,
         ghostOffsetY = 0,
-        gridSize = 0,
-        grid = {}
+        
+        grid = {},
+        gridSize = 0
     }   
 }
 
@@ -66,6 +103,7 @@ function setNextPiece()
     board.dropping.gridSize = pieceGridSizes[pieceID]
     board.dropping.offsetX = offsetX
     board.dropping.offsetY = offsetY
+    board.dropping.rotation = 0
     board.dropping.dropTime = dropTime(progress.level)
 
     for y = 1, board.dropping.gridSize do
@@ -86,6 +124,38 @@ function setNextPiece()
     return true
 end
 
+function attemptRotate(drop, direction)
+    if(drop.gridSize == 2) then return end
+    local newRotation = {}
+    local center = (drop.gridSize+1)/2
+    for y = 1, drop.gridSize do
+        table.insert(newRotation, {})
+        local offsetY = y - center
+        for x = 1, drop.gridSize do
+            local offsetX = x - center
+
+            local otherX = center - offsetY * direction
+            local otherY = center + offsetX * direction
+            table.insert(newRotation[y], drop.grid[otherY][otherX])
+        end
+    end
+    local kickChecks = normKickChecks
+    if(drop.gridSize == 4) then kickChecks = lineKickChecks end
+
+    local kicks = kickChecks[(direction+3)/2][drop.rotation + 1]
+    for i = 1, 5 do
+        local newOffsetX = drop.offsetX + kicks[i][1]
+        local newOffsetY = drop.offsetY + kicks[i][2]
+        if(pieceOffsetLegal(newRotation, drop.gridSize, newOffsetX, newOffsetY)) then
+            drop.grid = newRotation
+            drop.offsetX = newOffsetX
+            drop.offsetY = newOffsetY
+            drop.rotation = (drop.rotation + direction) % 4
+            return
+        end
+    end
+end
+
 function attemptMove(drop, directionX, directionY)
     if(pieceOffsetLegal(drop.grid, drop.gridSize, drop.offsetX+directionX, drop.offsetY+directionY)) then
         drop.offsetX = drop.offsetX + directionX
@@ -96,7 +166,7 @@ end
 function pieceRandomizer()
     if(#board.next<7) then
         local allPieces = {1, 2, 3, 4, 5, 6, 7}
-        for i=1, 7 do
+        for i = 1, 7 do
             table.insert(board.next, table.remove(allPieces, math.random(#allPieces)))
         end
     end
@@ -130,6 +200,8 @@ function Update(deltaTime, key)
     if(key=="right")    then attemptMove(drop, 1, 0)
     elseif(key=="left") then attemptMove(drop, -1, 0)
     elseif(key=="down") then attemptMove(drop, 0, -1)
+    elseif(key=="1")    then attemptRotate(drop, -1)
+    elseif(key=="2")    then attemptRotate(drop, 1)
     end
 
     drop.dropTime = drop.dropTime - deltaTime
