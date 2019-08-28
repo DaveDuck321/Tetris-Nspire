@@ -12,7 +12,6 @@ end
 function drawFPS(gc)
     gc:setColorRGB(255, 0, 0)
     gc:drawString(math.floor(FPS.FPS*10)/10, 10, 5) --1 dp
-    --gc:drawString(board.dropping.goundTimer, 10, 5)
 end
 
 function drawPieceBox(gc, index, pieceID, blockWidth, offsetX, top)
@@ -116,7 +115,7 @@ function drawBoard(gc, screenWidth, screenHeight)
 
     gc:setFont("sansserif", "b", 7)
     gc:drawString(progress.score, UIOffset, offsetY + blockWidth*9.7)
-    gc:drawString(progress.level, UIOffset, offsetY + blockWidth*13.7)
+    gc:drawString(progress.level + 1, UIOffset, offsetY + blockWidth*13.7)
     gc:drawString(progress.lines, UIOffset, offsetY + blockWidth*17.7)
 end
 
