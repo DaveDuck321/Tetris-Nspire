@@ -60,6 +60,7 @@ local board = {
     dropping = {
         dropTime = 0,
         rotation = 0,
+        pieceID = 0,
 
         offsetX = 0,
         offsetY = 0,
@@ -106,8 +107,7 @@ function pieceOffsetLegal(piece, gridSize, offsetX, offsetY)
     return true
 end
 
-function setNextPiece()
-    local pieceID = table.remove(board.next, 1)
+function setNextPiece(pieceID)
     local offsetY = 21 - pieceGridSizes[pieceID]
     local offsetX = 5 - math.ceil(pieceGridSizes[pieceID]/2)
 
@@ -119,6 +119,7 @@ function setNextPiece()
     board.dropping.dropTime = 0
     board.dropping.goundTimer = 500
     board.dropping.onGround = false
+    board.dropping.pieceID = pieceID
 
     for y = 1, board.dropping.gridSize do
         table.insert(board.dropping.grid, {})
@@ -199,6 +200,20 @@ function deleteClearedRows(rows)
     end
 end
 
+function attemptHold(drop, hold)
+    if(hold.canHold) then
+        if(hold.holdID == 0) then
+            hold.holdID = drop.pieceID
+            setNextPiece(table.remove(board.next, 1))
+        else
+            local fallingPieceID = drop.pieceID
+            setNextPiece(hold.holdID)
+            hold.holdID = fallingPieceID
+        end
+        hold.canHold = false
+    end
+end
+
 function lockDropping(drop)
     for y = 1, drop.gridSize do
         for x = 1, drop.gridSize do
@@ -207,8 +222,9 @@ function lockDropping(drop)
             end
         end
     end
+    board.hold.canHold = true
     updateBoardRows()
-    setNextPiece()
+    setNextPiece(table.remove(board.next, 1))
 end
 
 function hardDrop(drop)
@@ -243,7 +259,7 @@ function Init()
         end
     end
     pieceRandomizer()
-    setNextPiece()
+    setNextPiece(table.remove(board.next, 1))
 end
 
 function Update(deltaTime, key)
@@ -265,6 +281,7 @@ function Update(deltaTime, key)
     elseif(key=="up")   then hardDrop(drop)
     elseif(key=="1")    then attemptRotate(drop, -1)
     elseif(key=="2")    then attemptRotate(drop, 1)
+    elseif(key=="c")    then attemptHold(drop, board.hold)
     end
 
     local onGround = not pieceOffsetLegal(drop.grid, drop.gridSize, drop.offsetX, drop.offsetY - 1)
