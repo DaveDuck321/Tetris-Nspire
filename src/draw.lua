@@ -15,7 +15,7 @@ function drawFPS(gc)
     gc:drawString(math.floor(FPS.FPS*10)/10, 10, 5) --1 dp
 end
 
-function drawPieceBox(gc, index, pieceID, blockWidth, offsetX, top)
+function drawPieceBox(gc, index, pieceID, blockWidth, offsetX, top, enabled)
     local offsetY = top + index * (blockWidth * 4 + 10)
     local width = blockWidth * 4
     gc:setColorRGB(50, 50, 50)
@@ -29,8 +29,12 @@ function drawPieceBox(gc, index, pieceID, blockWidth, offsetX, top)
         gc:fillRect(offsetX, y*blockWidth + offsetY, width, 1)
     end
 
-    if(pieceID==0) then return end
-    if(pauseState.pauseActive) then return end
+    if(not enabled) then
+        gc:setColorRGB(100, 100, 100)
+        gc:fillRect(offsetX+width*0.2, offsetY + 1.5*blockWidth, blockWidth*2.5, blockWidth)
+        return
+    end
+    if(pieceID==0 or pauseState.pauseActive) then return end
 
     local color = pieceColors[pieceID]
     gc:setColorRGB(color[1], color[2], color[3])
@@ -102,14 +106,14 @@ function drawBoard(gc, screenWidth, screenHeight)
         gc:fillRect(offsetX, y*blockWidth + offsetY, width, 1)
     end
     --Next pieces
-    drawPieceBox(gc, 0, board.next[1], blockWidth, offsetX + width + 10, offsetY)
-    drawPieceBox(gc, 1, board.next[2], blockWidth, offsetX + width + 10, offsetY)
-    drawPieceBox(gc, 2, board.next[3], blockWidth, offsetX + width + 10, offsetY)
-    drawPieceBox(gc, 3, board.next[4], blockWidth, offsetX + width + 10, offsetY)
+    drawPieceBox(gc, 0, board.next[1], blockWidth, offsetX + width + 10, offsetY, options.enableNext)
+    drawPieceBox(gc, 1, board.next[2], blockWidth, offsetX + width + 10, offsetY, options.enableNext)
+    drawPieceBox(gc, 2, board.next[3], blockWidth, offsetX + width + 10, offsetY, options.enableNext)
+    drawPieceBox(gc, 3, board.next[4], blockWidth, offsetX + width + 10, offsetY, options.enableNext)
 
     --Hold
     local UIOffset = offsetX - blockWidth * 4 - 10
-    drawPieceBox(gc, 0.35, board.hold.holdID, blockWidth, UIOffset,  offsetY)
+    drawPieceBox(gc, 0.35, board.hold.holdID, blockWidth, UIOffset,  offsetY, options.enableHold)
 
     --Text UI
     gc:setColorRGB(0, 0, 0)
@@ -141,7 +145,7 @@ function drawBoard(gc, screenWidth, screenHeight)
             local ghostY = y-drop.ghostOffsetY
 
             if(dropX > 0 and dropX <= drop.gridSize) then
-                if(ghostY > 0 and ghostY <= drop.gridSize) then
+                if(ghostY > 0 and ghostY <= drop.gridSize and options.enableGhost) then
                     drawBlock(gc, x, y, offsetX, offsetY, blockWidth, drop.grid[ghostY][dropX], false)
                 end
                 if(dropY > 0 and dropY <= drop.gridSize) then

@@ -14,6 +14,51 @@ local screenInvalid = true
 local lastFrameTime = 0
 
 local screen = platform.window
+local options = {
+    enableHold = true,
+    enableGhost = true,
+    enableNext = true
+}
+
+--Tool palette (might be a better way to do this)
+function newGame()
+    Init(0)
+end
+function newGame5()
+    Init(4)
+end
+function newGame10()
+    Init(9)
+end
+function newGame15()
+    Init(14)
+end
+
+function toggleHold()
+    options.enableHold = not options.enableHold
+    screenInvalid = true
+end
+function toggleNext()
+    options.enableNext = not options.enableNext
+    screenInvalid = true
+end
+function toggleGhost()
+    options.enableGhost = not options.enableGhost
+    screenInvalid = true
+end
+local menu = {
+    {"New Game",
+        {"Level: 1", newGame},
+        {"Level: 5", newGame5},
+        {"Level: 10", newGame10},
+        {"Level: 15", newGame15}
+    },
+    {"Options",
+        {"Toggle next box", toggleNext},
+        {"Toggle hold", toggleHold},
+        {"Toggle ghost piece", toggleGhost}
+    }
+}
 
 --Events
 function on.construction()
@@ -21,8 +66,9 @@ function on.construction()
 end
 
 function on.create()
+    toolpalette.register(menu)
     lastFrameTime = timer.getMilliSecCounter()
-    Init()
+    Init(0)
     on.timer()
 end
 
@@ -52,6 +98,10 @@ function on.charIn(char)
     lastPressed = char
 end
 
+function on.contextMenu() --Doesnt work
+    lastPressed = "esc"
+end
+
 function on.enterKey()
     lastPressed = "enter"
     on.timer()
@@ -63,6 +113,7 @@ function on.escapeKey()
 end
 
 function on.getFocus()
+    lastPressed = "esc" --auto pause
     on.timer()
 end
 ----- '.\src\main.lua' -----
@@ -148,12 +199,13 @@ local progress = {
     backToBack = false,
     score = 0,
     lines = 0,
-    level = 0
+    level = 0,
+    levelOffset = 0
 }
 
 local pauseState = {
-    pauseActive = false,
-    unpausing = false,
+    pauseActive = true,
+    unpausing = true,
     unpauseDelay = 1800
 }
 
@@ -280,7 +332,7 @@ function updateBoardRows()
     end
     progress.score = progress.score + scores[rowsCleared + 1] * multiplier
     progress.lines = progress.lines + rowsCleared
-    progress.level = math.floor(progress.lines/10)
+    progress.level = math.floor(progress.lines/10) + progress.levelOffset
     screenInvalid = true
 end
 
@@ -292,7 +344,7 @@ function deleteClearedRows(rows)
 end
 
 function attemptHold(drop, hold)
-    if(hold.canHold) then
+    if(hold.canHold and options.enableHold) then
         if(hold.holdID == 0) then
             hold.holdID = drop.pieceID
             setNextPiece(table.remove(board.next, 1))
@@ -413,11 +465,26 @@ function gameUpdate(deltaTime, key, drop)
             lockDropping(drop)
         end
     end
-
-    setGhostOffset(drop)
+    if(options.enableGhost) then
+        setGhostOffset(drop)
+    end
 end
 
-function Init()
+function Init(levelOffset)
+    progress.lines = 0
+    progress.levelOffset = levelOffset
+    progress.level = levelOffset
+    progress.score = 0
+
+    board.grid = {}
+    board.next = {}
+    board.hold.canHold = true
+    board.hold.holdID = 0
+
+    pauseState.pauseActive = true
+    pauseState.unpausing = true
+    pauseState.unpauseDelay = 1800
+
     for y = 1, 28 do
         table.insert(board.grid, {})
         for x = 1, 10 do
@@ -464,7 +531,7 @@ function drawFPS(gc)
     gc:drawString(math.floor(FPS.FPS*10)/10, 10, 5) --1 dp
 end
 
-function drawPieceBox(gc, index, pieceID, blockWidth, offsetX, top)
+function drawPieceBox(gc, index, pieceID, blockWidth, offsetX, top, enabled)
     local offsetY = top + index * (blockWidth * 4 + 10)
     local width = blockWidth * 4
     gc:setColorRGB(50, 50, 50)
@@ -478,8 +545,12 @@ function drawPieceBox(gc, index, pieceID, blockWidth, offsetX, top)
         gc:fillRect(offsetX, y*blockWidth + offsetY, width, 1)
     end
 
-    if(pieceID==0) then return end
-    if(pauseState.pauseActive) then return end
+    if(not enabled) then
+        gc:setColorRGB(100, 100, 100)
+        gc:fillRect(offsetX+width*0.2, offsetY + 1.5*blockWidth, blockWidth*2.5, blockWidth)
+        return
+    end
+    if(pieceID==0 or pauseState.pauseActive) then return end
 
     local color = pieceColors[pieceID]
     gc:setColorRGB(color[1], color[2], color[3])
@@ -551,14 +622,14 @@ function drawBoard(gc, screenWidth, screenHeight)
         gc:fillRect(offsetX, y*blockWidth + offsetY, width, 1)
     end
     --Next pieces
-    drawPieceBox(gc, 0, board.next[1], blockWidth, offsetX + width + 10, offsetY)
-    drawPieceBox(gc, 1, board.next[2], blockWidth, offsetX + width + 10, offsetY)
-    drawPieceBox(gc, 2, board.next[3], blockWidth, offsetX + width + 10, offsetY)
-    drawPieceBox(gc, 3, board.next[4], blockWidth, offsetX + width + 10, offsetY)
+    drawPieceBox(gc, 0, board.next[1], blockWidth, offsetX + width + 10, offsetY, options.enableNext)
+    drawPieceBox(gc, 1, board.next[2], blockWidth, offsetX + width + 10, offsetY, options.enableNext)
+    drawPieceBox(gc, 2, board.next[3], blockWidth, offsetX + width + 10, offsetY, options.enableNext)
+    drawPieceBox(gc, 3, board.next[4], blockWidth, offsetX + width + 10, offsetY, options.enableNext)
 
     --Hold
     local UIOffset = offsetX - blockWidth * 4 - 10
-    drawPieceBox(gc, 0.35, board.hold.holdID, blockWidth, UIOffset,  offsetY)
+    drawPieceBox(gc, 0.35, board.hold.holdID, blockWidth, UIOffset,  offsetY, options.enableHold)
 
     --Text UI
     gc:setColorRGB(0, 0, 0)
@@ -590,7 +661,7 @@ function drawBoard(gc, screenWidth, screenHeight)
             local ghostY = y-drop.ghostOffsetY
 
             if(dropX > 0 and dropX <= drop.gridSize) then
-                if(ghostY > 0 and ghostY <= drop.gridSize) then
+                if(ghostY > 0 and ghostY <= drop.gridSize and options.enableGhost) then
                     drawBlock(gc, x, y, offsetX, offsetY, blockWidth, drop.grid[ghostY][dropX], false)
                 end
                 if(dropY > 0 and dropY <= drop.gridSize) then

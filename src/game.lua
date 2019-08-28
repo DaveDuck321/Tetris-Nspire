@@ -77,12 +77,13 @@ local progress = {
     backToBack = false,
     score = 0,
     lines = 0,
-    level = 0
+    level = 0,
+    levelOffset = 0
 }
 
 local pauseState = {
-    pauseActive = false,
-    unpausing = false,
+    pauseActive = true,
+    unpausing = true,
     unpauseDelay = 1800
 }
 
@@ -209,7 +210,7 @@ function updateBoardRows()
     end
     progress.score = progress.score + scores[rowsCleared + 1] * multiplier
     progress.lines = progress.lines + rowsCleared
-    progress.level = math.floor(progress.lines/10)
+    progress.level = math.floor(progress.lines/10) + progress.levelOffset
     screenInvalid = true
 end
 
@@ -221,7 +222,7 @@ function deleteClearedRows(rows)
 end
 
 function attemptHold(drop, hold)
-    if(hold.canHold) then
+    if(hold.canHold and options.enableHold) then
         if(hold.holdID == 0) then
             hold.holdID = drop.pieceID
             setNextPiece(table.remove(board.next, 1))
@@ -342,11 +343,26 @@ function gameUpdate(deltaTime, key, drop)
             lockDropping(drop)
         end
     end
-
-    setGhostOffset(drop)
+    if(options.enableGhost) then
+        setGhostOffset(drop)
+    end
 end
 
-function Init()
+function Init(levelOffset)
+    progress.lines = 0
+    progress.levelOffset = levelOffset
+    progress.level = levelOffset
+    progress.score = 0
+
+    board.grid = {}
+    board.next = {}
+    board.hold.canHold = true
+    board.hold.holdID = 0
+
+    pauseState.pauseActive = true
+    pauseState.unpausing = true
+    pauseState.unpauseDelay = 1800
+
     for y = 1, 28 do
         table.insert(board.grid, {})
         for x = 1, 10 do
