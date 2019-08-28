@@ -40,3 +40,17 @@ end
 function on.charIn(char)
     lastPressed = char
 end
+
+function on.enterKey()
+    lastPressed = "enter"
+    on.timer()
+end
+
+function on.escapeKey()
+    lastPressed = "esc"
+    on.timer()
+end
+
+function on.getFocus()
+    on.timer()
+end

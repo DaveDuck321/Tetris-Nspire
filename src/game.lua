@@ -80,6 +80,12 @@ local progress = {
     level = 0
 }
 
+local pauseState = {
+    pauseActive = false,
+    unpausing = false,
+    unpauseDelay = 1800
+}
+
 local FPS = {
     frames = 0,
     totalTime = 0,
@@ -265,31 +271,46 @@ function setGhostOffset(drop)
     end
 end
 
-function Init()
-    for y = 1, 28 do
-        table.insert(board.grid, {})
-        for x = 1, 10 do
-            table.insert(board.grid[y], 0)
-        end
-    end
-    pieceRandomizer()
-    setNextPiece(table.remove(board.next, 1))
+function pauseGame()
+    pauseState.pauseActive = true
+    pauseState.unpausing = false
+    pauseState.unpauseDelay = 1800
 end
 
-function Update(deltaTime, key)
-    --Dont update while animating
-    local drop = board.dropping
-    if(board.animation.frame ~= 0) then
-        board.animation.frame = board.animation.frame-1
-        screenInvalid = true
-        if(board.animation.frame == 0) then
-            deleteClearedRows(board.animation.rows)
-            setGhostOffset(drop)
-            board.animation.rows = {}
-        end
-        return
+function updateFPS(deltaTime)
+    FPS.frames = FPS.frames + 1
+    FPS.totalTime = FPS.totalTime + deltaTime
+    if FPS.frames % 10 == 0 then
+        FPS.FPS = FPS.frames/FPS.totalTime * 1000
+        FPS.frames = 0
+        FPS.totalTime = 0
     end
+end
 
+function pauseUpdate(deltaTime, key)
+    screenInvalid = true
+    if(key=="enter") then
+        pauseState.unpausing = true
+    end
+    if(pauseState.unpausing) then
+        pauseState.unpauseDelay = pauseState.unpauseDelay - deltaTime
+        if(pauseState.unpauseDelay<0) then
+            pauseState.pauseActive = false
+        end
+    end
+end
+
+function animationUpdate(drop)
+    screenInvalid = true
+    board.animation.frame = board.animation.frame-1
+    if(board.animation.frame == 0) then
+        deleteClearedRows(board.animation.rows)
+        setGhostOffset(drop)
+        board.animation.rows = {}
+    end
+end
+
+function gameUpdate(deltaTime, key, drop)
     --Movement speed unavoidably changes based on framerate/ autorepeat frequency
     if(key=="right")    then attemptMove(drop, 1, 0)
     elseif(key=="left") then attemptMove(drop, -1, 0)
@@ -298,6 +319,9 @@ function Update(deltaTime, key)
     elseif(key=="1")    then attemptRotate(drop, -1)
     elseif(key=="2")    then attemptRotate(drop, 1)
     elseif(key=="c")    then attemptHold(drop, board.hold)
+    elseif(key=="esc")  then
+        pauseGame()
+        return --When automatically paused deltaTime can be too large, need to avoid
     end
 
     local onGround = not pieceOffsetLegal(drop.grid, drop.gridSize, drop.offsetX, drop.offsetY - 1)
@@ -320,12 +344,31 @@ function Update(deltaTime, key)
     end
 
     setGhostOffset(drop)
+end
 
-    FPS.frames = FPS.frames + 1
-    FPS.totalTime = FPS.totalTime + deltaTime
-    if FPS.frames % 10 == 0 then
-        FPS.FPS = FPS.frames/FPS.totalTime * 1000
-        FPS.frames = 0
-        FPS.totalTime = 0
+function Init()
+    for y = 1, 28 do
+        table.insert(board.grid, {})
+        for x = 1, 10 do
+            table.insert(board.grid[y], 0)
+        end
     end
+    pieceRandomizer()
+    setNextPiece(table.remove(board.next, 1))
+end
+
+function Update(deltaTime, key)
+    updateFPS(deltaTime)
+    if(pauseState.pauseActive) then
+        pauseUpdate(deltaTime, key)
+        return
+    end
+
+    --Dont update while animating
+    if(board.animation.frame ~= 0) then
+        animationUpdate(board.dropping)
+        return
+    end
+
+    gameUpdate(deltaTime, key, board.dropping)
 end

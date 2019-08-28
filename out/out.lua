@@ -51,6 +51,20 @@ end
 function on.charIn(char)
     lastPressed = char
 end
+
+function on.enterKey()
+    lastPressed = "enter"
+    on.timer()
+end
+
+function on.escapeKey()
+    lastPressed = "esc"
+    on.timer()
+end
+
+function on.getFocus()
+    on.timer()
+end
 ----- '.\src\main.lua' -----
 ----------------------------
 ----------------------------
@@ -135,6 +149,12 @@ local progress = {
     score = 0,
     lines = 0,
     level = 0
+}
+
+local pauseState = {
+    pauseActive = false,
+    unpausing = false,
+    unpauseDelay = 1800
 }
 
 local FPS = {
@@ -322,31 +342,46 @@ function setGhostOffset(drop)
     end
 end
 
-function Init()
-    for y = 1, 28 do
-        table.insert(board.grid, {})
-        for x = 1, 10 do
-            table.insert(board.grid[y], 0)
-        end
-    end
-    pieceRandomizer()
-    setNextPiece(table.remove(board.next, 1))
+function pauseGame()
+    pauseState.pauseActive = true
+    pauseState.unpausing = false
+    pauseState.unpauseDelay = 1800
 end
 
-function Update(deltaTime, key)
-    --Dont update while animating
-    local drop = board.dropping
-    if(board.animation.frame ~= 0) then
-        board.animation.frame = board.animation.frame-1
-        screenInvalid = true
-        if(board.animation.frame == 0) then
-            deleteClearedRows(board.animation.rows)
-            board.animation.rows = {}
-            setGhostOffset(drop)
-        end
-        return
+function updateFPS(deltaTime)
+    FPS.frames = FPS.frames + 1
+    FPS.totalTime = FPS.totalTime + deltaTime
+    if FPS.frames % 10 == 0 then
+        FPS.FPS = FPS.frames/FPS.totalTime * 1000
+        FPS.frames = 0
+        FPS.totalTime = 0
     end
+end
 
+function pauseUpdate(deltaTime, key)
+    screenInvalid = true
+    if(key=="enter") then
+        pauseState.unpausing = true
+    end
+    if(pauseState.unpausing) then
+        pauseState.unpauseDelay = pauseState.unpauseDelay - deltaTime
+        if(pauseState.unpauseDelay<0) then
+            pauseState.pauseActive = false
+        end
+    end
+end
+
+function animationUpdate(drop)
+    screenInvalid = true
+    board.animation.frame = board.animation.frame-1
+    if(board.animation.frame == 0) then
+        deleteClearedRows(board.animation.rows)
+        setGhostOffset(drop)
+        board.animation.rows = {}
+    end
+end
+
+function gameUpdate(deltaTime, key, drop)
     --Movement speed unavoidably changes based on framerate/ autorepeat frequency
     if(key=="right")    then attemptMove(drop, 1, 0)
     elseif(key=="left") then attemptMove(drop, -1, 0)
@@ -355,6 +390,9 @@ function Update(deltaTime, key)
     elseif(key=="1")    then attemptRotate(drop, -1)
     elseif(key=="2")    then attemptRotate(drop, 1)
     elseif(key=="c")    then attemptHold(drop, board.hold)
+    elseif(key=="esc")  then
+        pauseGame()
+        return --When automatically paused deltaTime can be too large, need to avoid
     end
 
     local onGround = not pieceOffsetLegal(drop.grid, drop.gridSize, drop.offsetX, drop.offsetY - 1)
@@ -377,14 +415,33 @@ function Update(deltaTime, key)
     end
 
     setGhostOffset(drop)
+end
 
-    FPS.frames = FPS.frames + 1
-    FPS.totalTime = FPS.totalTime + deltaTime
-    if FPS.frames % 10 == 0 then
-        FPS.FPS = FPS.frames/FPS.totalTime * 1000
-        FPS.frames = 0
-        FPS.totalTime = 0
+function Init()
+    for y = 1, 28 do
+        table.insert(board.grid, {})
+        for x = 1, 10 do
+            table.insert(board.grid[y], 0)
+        end
     end
+    pieceRandomizer()
+    setNextPiece(table.remove(board.next, 1))
+end
+
+function Update(deltaTime, key)
+    updateFPS(deltaTime)
+    if(pauseState.pauseActive) then
+        pauseUpdate(deltaTime, key)
+        return
+    end
+
+    --Dont update while animating
+    if(board.animation.frame ~= 0) then
+        animationUpdate(board.dropping)
+        return
+    end
+
+    gameUpdate(deltaTime, key, board.dropping)
 end
 ----- '.\src\game.lua' -----
 ----------------------------
@@ -402,6 +459,7 @@ function arrayContains(array, thing)
 end
 
 function drawFPS(gc)
+    gc:setFont("sansserif", "b", 7)
     gc:setColorRGB(255, 0, 0)
     gc:drawString(math.floor(FPS.FPS*10)/10, 10, 5) --1 dp
 end
@@ -421,6 +479,7 @@ function drawPieceBox(gc, index, pieceID, blockWidth, offsetX, top)
     end
 
     if(pieceID==0) then return end
+    if(pauseState.pauseActive) then return end
 
     local color = pieceColors[pieceID]
     gc:setColorRGB(color[1], color[2], color[3])
@@ -449,6 +508,30 @@ function drawBlock(gc, x, y, offsetX, offsetY, blockWidth, id, fill)
     gc:drawRect(offsetX + x*blockWidth + 1, (20-y)*blockWidth + offsetY + 1, blockWidth-2, blockWidth-2)
 end
 
+function drawStringCentered(gc, string, x, y)
+    local stringWidth = gc:getStringWidth(string)
+    gc:drawString(string, x-stringWidth/2, y)
+end
+
+function drawPauseUI(gc, centerX, centerY)
+    local width = 80
+    local height = 40
+    gc:setColorRGB(150, 150, 150)
+    gc:fillRect(centerX-width/2, centerY-height/2, width, height)
+
+    gc:setColorRGB(0, 0, 0)
+    if(pauseState.unpausing) then
+        local time = math.ceil(pauseState.unpauseDelay/600)
+        gc:setFont("sansserif", "b", 12)
+        drawStringCentered(gc, time, centerX, centerY-height/2 + 8)
+        return
+    end
+    gc:setFont("sansserif", "b", 11)
+    drawStringCentered(gc, "PAUSED", centerX, centerY-height/2)
+    gc:setFont("sansserif", "b", 7)
+    drawStringCentered(gc, "Press ENTER", centerX, centerY-height/2 + 20)
+end
+
 function drawBoard(gc, screenWidth, screenHeight)
     local blockWidth = math.floor(screenHeight/20)
     local width = blockWidth * 10
@@ -456,6 +539,7 @@ function drawBoard(gc, screenWidth, screenHeight)
     local offsetY = (screenHeight - width*2)/2
     local height = width*2
 
+    --Grid
     gc:setColorRGB(50, 50, 50)
     gc:fillRect(offsetX, offsetY, width, height)
 
@@ -465,27 +549,6 @@ function drawBoard(gc, screenWidth, screenHeight)
     end
     for y = 0, 20 do
         gc:fillRect(offsetX, y*blockWidth + offsetY, width, 1)
-    end
-    for y = 1, 20 do
-        local continue = board.animation.frame%2==0 and arrayContains(board.animation.rows, y)
-        for x = 0, 9 do
-            if(continue) then break end -- budget continue statement
-
-            local drop = board.dropping
-            local dropX = x-drop.offsetX + 1
-            local dropY = y-drop.offsetY
-            local ghostY = y-drop.ghostOffsetY
-
-            if(dropX > 0 and dropX <= drop.gridSize) then
-                if(ghostY > 0 and ghostY <= drop.gridSize) then
-                    drawBlock(gc, x, y, offsetX, offsetY, blockWidth, drop.grid[ghostY][dropX], false)
-                end
-                if(dropY > 0 and dropY <= drop.gridSize) then
-                    drawBlock(gc, x, y, offsetX, offsetY, blockWidth, drop.grid[dropY][dropX], true)
-                end
-            end
-            drawBlock(gc, x, y, offsetX, offsetY, blockWidth, board.grid[y][x+1], true)
-        end
     end
     --Next pieces
     drawPieceBox(gc, 0, board.next[1], blockWidth, offsetX + width + 10, offsetY)
@@ -509,6 +572,34 @@ function drawBoard(gc, screenWidth, screenHeight)
     gc:drawString(progress.score, UIOffset, offsetY + blockWidth*9.7)
     gc:drawString(progress.level + 1, UIOffset, offsetY + blockWidth*13.7)
     gc:drawString(progress.lines, UIOffset, offsetY + blockWidth*17.7)
+
+    --If paused dont show pieces
+    if(pauseState.pauseActive) then
+        drawPauseUI(gc, offsetX + width/2, offsetY+height/2)
+        return
+    end
+    --Board
+    for y = 1, 20 do
+        local continue = board.animation.frame%2==0 and arrayContains(board.animation.rows, y)
+        for x = 0, 9 do
+            if(continue) then break end -- budget continue statement
+
+            local drop = board.dropping
+            local dropX = x-drop.offsetX + 1
+            local dropY = y-drop.offsetY
+            local ghostY = y-drop.ghostOffsetY
+
+            if(dropX > 0 and dropX <= drop.gridSize) then
+                if(ghostY > 0 and ghostY <= drop.gridSize) then
+                    drawBlock(gc, x, y, offsetX, offsetY, blockWidth, drop.grid[ghostY][dropX], false)
+                end
+                if(dropY > 0 and dropY <= drop.gridSize) then
+                    drawBlock(gc, x, y, offsetX, offsetY, blockWidth, drop.grid[dropY][dropX], true)
+                end
+            end
+            drawBlock(gc, x, y, offsetX, offsetY, blockWidth, board.grid[y][x+1], true)
+        end
+    end
 end
 
 function Draw(gc, width, height)
