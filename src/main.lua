@@ -1,4 +1,5 @@
 local lastPressed = ""
+local screenInvalid = true
 local lastFrameTime = 0
 
 local screen = platform.window
@@ -22,7 +23,10 @@ function on.timer(gc)
     local time = timer.getMilliSecCounter()
 
     Update(time-lastFrameTime, lastPressed)
-    screen:invalidate()
+    if(screenInvalid) then
+        screen:invalidate()
+        screenInvalid = false
+    end
 
     lastPressed = ""
     lastFrameTime = time

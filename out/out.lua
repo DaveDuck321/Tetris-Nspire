@@ -10,6 +10,7 @@ _R.IMG = {}
 ----------------------------
 ----- '.\src\main.lua' -----
 local lastPressed = ""
+local screenInvalid = true
 local lastFrameTime = 0
 
 local screen = platform.window
@@ -33,7 +34,10 @@ function on.timer(gc)
     local time = timer.getMilliSecCounter()
 
     Update(time-lastFrameTime, lastPressed)
-    screen:invalidate()
+    if(screenInvalid) then
+        screen:invalidate()
+        screenInvalid = false
+    end
 
     lastPressed = ""
     lastFrameTime = time
@@ -113,6 +117,7 @@ local board = {
     dropping = {
         dropTime = 0,
         rotation = 0,
+        pieceID = 0,
 
         offsetX = 0,
         offsetY = 0,
@@ -126,6 +131,7 @@ local board = {
 }
 
 local progress = {
+    backToBack = false,
     score = 0,
     lines = 0,
     level = 0
@@ -159,8 +165,7 @@ function pieceOffsetLegal(piece, gridSize, offsetX, offsetY)
     return true
 end
 
-function setNextPiece()
-    local pieceID = table.remove(board.next, 1)
+function setNextPiece(pieceID)
     local offsetY = 21 - pieceGridSizes[pieceID]
     local offsetX = 5 - math.ceil(pieceGridSizes[pieceID]/2)
 
@@ -172,6 +177,7 @@ function setNextPiece()
     board.dropping.dropTime = 0
     board.dropping.goundTimer = 500
     board.dropping.onGround = false
+    board.dropping.pieceID = pieceID
 
     for y = 1, board.dropping.gridSize do
         table.insert(board.dropping.grid, {})
@@ -179,6 +185,7 @@ function setNextPiece()
             table.insert(board.dropping.grid[y], pieces[pieceID][y][x])
         end
     end
+    screenInvalid = true
     pieceRandomizer()
     return pieceOffsetLegal(board.dropping.grid, pieceGridSizes[pieceID], offsetX, offsetY)
 end
@@ -211,6 +218,7 @@ function attemptRotate(drop, direction)
             drop.offsetY = newOffsetY
             drop.rotation = (drop.rotation + direction) % 4
             drop.goundTimer = 500
+            screenInvalid = true
             return
         end
     end
@@ -221,11 +229,13 @@ function attemptMove(drop, directionX, directionY)
         drop.offsetX = drop.offsetX + directionX
         drop.offsetY = drop.offsetY + directionY
         drop.goundTimer = 500
+        screenInvalid = true
     end
 end
 
 function updateBoardRows()
     local rowsCleared = 0
+    local multiplier = progress.level + 1
     for y = 1, 28 do
         local shouldClear = true
         for x = 1, 10 do
@@ -240,15 +250,38 @@ function updateBoardRows()
             board.animation.frame = 10
         end
     end
-    progress.score = progress.score + scores[rowsCleared + 1]
+    if(rowsCleared == 4) then
+        if(progress.backToBack) then
+            multiplier = multiplier*1.5
+        end
+        progress.backToBack = true
+    elseif(rowsCleared ~= 0) then
+        progress.backToBack = false
+    end
+    progress.score = progress.score + scores[rowsCleared + 1] * multiplier
     progress.lines = progress.lines + rowsCleared
     progress.level = math.floor(progress.lines/10)
+    screenInvalid = true
 end
 
 function deleteClearedRows(rows)
     for i = #rows, 1, -1 do
         table.remove(board.grid, rows[i])
         table.insert(board.grid, {0, 0, 0, 0, 0, 0, 0, 0, 0, 0})
+    end
+end
+
+function attemptHold(drop, hold)
+    if(hold.canHold) then
+        if(hold.holdID == 0) then
+            hold.holdID = drop.pieceID
+            setNextPiece(table.remove(board.next, 1))
+        else
+            local fallingPieceID = drop.pieceID
+            setNextPiece(hold.holdID)
+            hold.holdID = fallingPieceID
+        end
+        hold.canHold = false
     end
 end
 
@@ -260,8 +293,9 @@ function lockDropping(drop)
             end
         end
     end
+    board.hold.canHold = true
     updateBoardRows()
-    setNextPiece()
+    setNextPiece(table.remove(board.next, 1))
 end
 
 function hardDrop(drop)
@@ -296,21 +330,23 @@ function Init()
         end
     end
     pieceRandomizer()
-    setNextPiece()
+    setNextPiece(table.remove(board.next, 1))
 end
 
 function Update(deltaTime, key)
     --Dont update while animating
+    local drop = board.dropping
     if(board.animation.frame ~= 0) then
         board.animation.frame = board.animation.frame-1
+        screenInvalid = true
         if(board.animation.frame == 0) then
             deleteClearedRows(board.animation.rows)
             board.animation.rows = {}
+            setGhostOffset(drop)
         end
         return
     end
 
-    local drop = board.dropping
     --Movement speed unavoidably changes based on framerate/ autorepeat frequency
     if(key=="right")    then attemptMove(drop, 1, 0)
     elseif(key=="left") then attemptMove(drop, -1, 0)
@@ -318,6 +354,7 @@ function Update(deltaTime, key)
     elseif(key=="up")   then hardDrop(drop)
     elseif(key=="1")    then attemptRotate(drop, -1)
     elseif(key=="2")    then attemptRotate(drop, 1)
+    elseif(key=="c")    then attemptHold(drop, board.hold)
     end
 
     local onGround = not pieceOffsetLegal(drop.grid, drop.gridSize, drop.offsetX, drop.offsetY - 1)
@@ -328,6 +365,7 @@ function Update(deltaTime, key)
         drop.dropTime = dropTime(progress.level)
         if(not onGround) then
             drop.offsetY = drop.offsetY - 1
+            screenInvalid = true
         end
     end
 
@@ -366,7 +404,6 @@ end
 function drawFPS(gc)
     gc:setColorRGB(255, 0, 0)
     gc:drawString(math.floor(FPS.FPS*10)/10, 10, 5) --1 dp
-    --gc:drawString(board.dropping.goundTimer, 10, 5)
 end
 
 function drawPieceBox(gc, index, pieceID, blockWidth, offsetX, top)
@@ -375,7 +412,7 @@ function drawPieceBox(gc, index, pieceID, blockWidth, offsetX, top)
     gc:setColorRGB(50, 50, 50)
     gc:fillRect(offsetX, offsetY, width, width)
 
-    gc:setColorRGB(200, 200, 200)
+    gc:setColorRGB(90, 90, 90)
     for x = 0, 4 do
         gc:fillRect(offsetX+x*blockWidth, offsetY, 1, width)
     end
@@ -412,17 +449,17 @@ function drawBlock(gc, x, y, offsetX, offsetY, blockWidth, id, fill)
     gc:drawRect(offsetX + x*blockWidth + 1, (20-y)*blockWidth + offsetY + 1, blockWidth-2, blockWidth-2)
 end
 
-function drawBoard(gc, screenWidth, height)
-    local blockWidth = math.floor(height/20)
+function drawBoard(gc, screenWidth, screenHeight)
+    local blockWidth = math.floor(screenHeight/20)
     local width = blockWidth * 10
     local offsetX = (screenWidth-width)/2
-    local offsetY = (height - width*2)/2
-    height = width*2
+    local offsetY = (screenHeight - width*2)/2
+    local height = width*2
 
     gc:setColorRGB(50, 50, 50)
     gc:fillRect(offsetX, offsetY, width, height)
 
-    gc:setColorRGB(200, 200, 200)
+    gc:setColorRGB(90, 90, 90)
     for x = 0, 10 do
         gc:fillRect(offsetX+x*blockWidth, offsetY, 1, height)
     end
@@ -457,7 +494,21 @@ function drawBoard(gc, screenWidth, height)
     drawPieceBox(gc, 3, board.next[4], blockWidth, offsetX + width + 10, offsetY)
 
     --Hold
-    drawPieceBox(gc, 0.5, board.hold.holdID, blockWidth, offsetX - blockWidth * 4 - 10, offsetY)
+    local UIOffset = offsetX - blockWidth * 4 - 10
+    drawPieceBox(gc, 0.35, board.hold.holdID, blockWidth, UIOffset,  offsetY)
+
+    --Text UI
+    gc:setColorRGB(0, 0, 0)
+    gc:setFont("sansserif", "b", 9)
+    gc:drawString("HOLD", UIOffset+4, offsetY)
+    gc:drawString("SCORE", UIOffset, offsetY + blockWidth*8)
+    gc:drawString("LEVEL", UIOffset, offsetY + blockWidth*12)
+    gc:drawString("LINES", UIOffset, offsetY + blockWidth*16)
+
+    gc:setFont("sansserif", "b", 7)
+    gc:drawString(progress.score, UIOffset, offsetY + blockWidth*9.7)
+    gc:drawString(progress.level + 1, UIOffset, offsetY + blockWidth*13.7)
+    gc:drawString(progress.lines, UIOffset, offsetY + blockWidth*17.7)
 end
 
 function Draw(gc, width, height)

@@ -128,6 +128,7 @@ function setNextPiece(pieceID)
             table.insert(board.dropping.grid[y], pieces[pieceID][y][x])
         end
     end
+    screenInvalid = true
     pieceRandomizer()
     return pieceOffsetLegal(board.dropping.grid, pieceGridSizes[pieceID], offsetX, offsetY)
 end
@@ -160,6 +161,7 @@ function attemptRotate(drop, direction)
             drop.offsetY = newOffsetY
             drop.rotation = (drop.rotation + direction) % 4
             drop.goundTimer = 500
+            screenInvalid = true
             return
         end
     end
@@ -170,6 +172,7 @@ function attemptMove(drop, directionX, directionY)
         drop.offsetX = drop.offsetX + directionX
         drop.offsetY = drop.offsetY + directionY
         drop.goundTimer = 500
+        screenInvalid = true
     end
 end
 
@@ -201,6 +204,7 @@ function updateBoardRows()
     progress.score = progress.score + scores[rowsCleared + 1] * multiplier
     progress.lines = progress.lines + rowsCleared
     progress.level = math.floor(progress.lines/10)
+    screenInvalid = true
 end
 
 function deleteClearedRows(rows)
@@ -274,16 +278,18 @@ end
 
 function Update(deltaTime, key)
     --Dont update while animating
+    local drop = board.dropping
     if(board.animation.frame ~= 0) then
         board.animation.frame = board.animation.frame-1
+        screenInvalid = true
         if(board.animation.frame == 0) then
             deleteClearedRows(board.animation.rows)
+            setGhostOffset(drop)
             board.animation.rows = {}
         end
         return
     end
 
-    local drop = board.dropping
     --Movement speed unavoidably changes based on framerate/ autorepeat frequency
     if(key=="right")    then attemptMove(drop, 1, 0)
     elseif(key=="left") then attemptMove(drop, -1, 0)
@@ -302,6 +308,7 @@ function Update(deltaTime, key)
         drop.dropTime = dropTime(progress.level)
         if(not onGround) then
             drop.offsetY = drop.offsetY - 1
+            screenInvalid = true
         end
     end
 
