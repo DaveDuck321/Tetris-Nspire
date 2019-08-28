@@ -21,7 +21,7 @@ function drawPieceBox(gc, index, pieceID, blockWidth, offsetX, top)
     gc:setColorRGB(50, 50, 50)
     gc:fillRect(offsetX, offsetY, width, width)
 
-    gc:setColorRGB(200, 200, 200)
+    gc:setColorRGB(90, 90, 90)
     for x = 0, 4 do
         gc:fillRect(offsetX+x*blockWidth, offsetY, 1, width)
     end
@@ -58,17 +58,17 @@ function drawBlock(gc, x, y, offsetX, offsetY, blockWidth, id, fill)
     gc:drawRect(offsetX + x*blockWidth + 1, (20-y)*blockWidth + offsetY + 1, blockWidth-2, blockWidth-2)
 end
 
-function drawBoard(gc, screenWidth, height)
-    local blockWidth = math.floor(height/20)
+function drawBoard(gc, screenWidth, screenHeight)
+    local blockWidth = math.floor(screenHeight/20)
     local width = blockWidth * 10
     local offsetX = (screenWidth-width)/2
-    local offsetY = (height - width*2)/2
-    height = width*2
+    local offsetY = (screenHeight - width*2)/2
+    local height = width*2
 
     gc:setColorRGB(50, 50, 50)
     gc:fillRect(offsetX, offsetY, width, height)
 
-    gc:setColorRGB(200, 200, 200)
+    gc:setColorRGB(90, 90, 90)
     for x = 0, 10 do
         gc:fillRect(offsetX+x*blockWidth, offsetY, 1, height)
     end
@@ -103,7 +103,21 @@ function drawBoard(gc, screenWidth, height)
     drawPieceBox(gc, 3, board.next[4], blockWidth, offsetX + width + 10, offsetY)
 
     --Hold
-    drawPieceBox(gc, 0.5, board.hold.holdID, blockWidth, offsetX - blockWidth * 4 - 10, offsetY)
+    local UIOffset = offsetX - blockWidth * 4 - 10
+    drawPieceBox(gc, 0.35, board.hold.holdID, blockWidth, UIOffset,  offsetY)
+
+    --Text UI
+    gc:setColorRGB(0, 0, 0)
+    gc:setFont("sansserif", "b", 9)
+    gc:drawString("HOLD", UIOffset+4, offsetY)
+    gc:drawString("SCORE", UIOffset, offsetY + blockWidth*8)
+    gc:drawString("LEVEL", UIOffset, offsetY + blockWidth*12)
+    gc:drawString("LINES", UIOffset, offsetY + blockWidth*16)
+
+    gc:setFont("sansserif", "b", 7)
+    gc:drawString(progress.score, UIOffset, offsetY + blockWidth*9.7)
+    gc:drawString(progress.level, UIOffset, offsetY + blockWidth*13.7)
+    gc:drawString(progress.lines, UIOffset, offsetY + blockWidth*17.7)
 end
 
 function Draw(gc, width, height)
