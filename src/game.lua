@@ -74,6 +74,7 @@ local board = {
 }
 
 local progress = {
+    backToBack = false,
     score = 0,
     lines = 0,
     level = 0
@@ -174,6 +175,7 @@ end
 
 function updateBoardRows()
     local rowsCleared = 0
+    local multiplier = progress.level + 1
     for y = 1, 28 do
         local shouldClear = true
         for x = 1, 10 do
@@ -188,7 +190,15 @@ function updateBoardRows()
             board.animation.frame = 10
         end
     end
-    progress.score = progress.score + scores[rowsCleared + 1]
+    if(rowsCleared == 4) then
+        if(progress.backToBack) then
+            multiplier = multiplier*1.5
+        end
+        progress.backToBack = true
+    elseif(rowsCleared ~= 0) then
+        progress.backToBack = false
+    end
+    progress.score = progress.score + scores[rowsCleared + 1] * multiplier
     progress.lines = progress.lines + rowsCleared
     progress.level = math.floor(progress.lines/10)
 end
